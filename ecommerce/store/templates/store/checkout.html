@@ -6,6 +6,7 @@
     <div class="col-lg-6" id="form-wrapper">
         <div class="box-element">
             <form action="" id="form">
+                {% csrf_token %}
                 <div id="user-info">
                     <div class="form-field">
                         <input required class="form-control" type="text" name="name" placeholder="Name..">
@@ -13,9 +14,9 @@
                     <div class="form-field">
                         <input required class="form-control" type="email" name="email" placeholder="Email..">
                     </div>
+                    <hr>
                 </div>
                 <div id="shipping-info">
-                    <hr>
                     <p>Shipping Information:</p>
                     <hr>
                     <div class="form-field">
@@ -31,17 +32,20 @@
                         <input class="form-control" type="text" name="zipcode" placeholder="Zip code..">
                     </div>
                     <div class="form-field">
-                        <input class="form-control" type="text" name="country" placeholder="Zip code..">
+                        <input class="form-control" type="text" name="country" placeholder="Country..">
                     </div>
                 </div>
                 <input class="btn btn-success btn-block" id="form-button" type="submit" value="Continue">
             </form>
         </div>
+        <br>
+        <div class="box-element hidden" id="payment-info-s">
+            <small>Payment Options</small>
+            <button class="btn btn-sm btn-success" id="make-payment-s">Make Payment</button>
+        </div>
     </div>
 
-    <div class="box-element hidden" id="payment-info">
-        <small>Payment Options</small>
-    </div>
+
 
     <div class="col-lg-6">
         <div class="box-element">
@@ -49,14 +53,115 @@
         </div>
         <hr>
         <h3>Order Summary</h3>
+        {% for item in items %}
         <div class="cart-row">
-            <div style="flex:2"><img class="row-image" src="{% static 'media/placeholder.png' %}"></div>
-            <div style="flex:2"><p>Product 1</p></div>
-            <div style="flex:1"><p>$20.00</p></div>
-            <div style="flex:1"><p>x2</p></div>
+            <div style="flex:2"><img class="row-image" src="{{ item.product.imageURL }}"></div>
+            <div style="flex:2"><p>{{ item.product.name }}</p></div>
+            <div style="flex:1"><p>{{ item.product.price }}</p></div>
+            <div style="flex:1"><p>x{{ item.quantity }}</p></div>
         </div>
-        <h5>Items:   2</h5>
-        <h5>Total:   $4</h5>
+        {% endfor %}
+        <h5>Items:   {{ order.get_cart_items }}</h5>
+        <h5>Total:   {{ order.get_cart_total|floatformat:2 }}€</h5>
+        <br>
+        <div class="box-element hidden" id="payment-info-ns">
+            <small>Payment Options</small>
+            <button class="btn btn-sm btn-success" id="make-payment-ns">Make Payment</button>
+        </div>
     </div>
 </div>
+
+<script type="text/javascript">
+    var user = '{{ request.user }}';
+    var shipping = '{{ order.shipping }}';
+    var total = '{{ order.get_cart_total }}';
+    
+    if(shipping === 'False') {
+        document.getElementById('shipping-info').innerHTML = '';
+    }
+    if(user !== 'AnonymousUser') {
+        document.getElementById('user-info').innerHTML = '';
+    }
+    if(shipping === 'False' && user !== 'AnonymousUser') {
+        document.getElementById('form-wrapper').classList.add('hidden');
+        document.getElementById('payment-info-ns').classList.remove('hidden');
+    }
+
+    var form = document.getElementById('form');
+    csrftoken = form.getElementsByTagName('input')[0].value;
+    console.log('New token:', form.getElementsByTagName('input')[0].value);
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        console.log('Form submitted...');
+        document.getElementById('form-button').classList.add('hidden');
+        document.getElementById('payment-info-s').classList.remove('hidden');
+    });
+    if(shipping === 'False' && user !== 'AnonymousUser') {
+        document.getElementById('make-payment-ns').addEventListener('click', function(e) {
+            submitFormData();
+        });
+    } else {
+        document.getElementById('make-payment-s').addEventListener('click', function(e) {
+            submitFormData();
+        });
+    }
+
+    function submitFormData() {
+        console.log('Payment button clicked.');
+
+        var userFormData = {
+            'name': null,
+            'email': null,
+            'total': total,
+        }
+
+        var shippingInfo = {
+            'address': null,
+            'city': null,
+            'state': null,
+            'zipcode': null,
+            'country': null,
+        }
+
+        if(shipping !== 'False') {
+            shippingInfo.address = form.address.value;
+            shippingInfo.city = form.city.value;
+            shippingInfo.state = form.state.value;
+            shippingInfo.zipcode = form.zipcode.value;
+            shippingInfo.country = form.country.value;
+        }
+
+        if(user === 'AnonymousUser') {
+            userFormData.name = form.name.value;
+            userFormData.email = form.email.value;
+        } else {
+            userFormData.name = '{{ order.customer.name }}';
+            userFormData.email = '{{ order.customer.email }}';
+        }
+
+        var url = '/process_order/';
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({
+                'form': userFormData,
+                'shipping': shippingInfo,
+            })
+        }
+        )
+        .then(response => {
+            response.json();
+        })
+        .then(data => {
+            console.log('Success:', data);
+            alert('Transaction completed!');
+            window.location.href = "{% url 'store' %}";
+        });
+    }
+
+</script>
 {% endblock content %}
