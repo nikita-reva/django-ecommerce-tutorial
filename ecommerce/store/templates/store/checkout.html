@@ -14,7 +14,6 @@
                     <div class="form-field">
                         <input required class="form-control" type="email" name="email" placeholder="Email..">
                     </div>
-                    <hr>
                 </div>
                 <div id="shipping-info">
                     <p>Shipping Information:</p>
@@ -39,13 +38,12 @@
             </form>
         </div>
         <br>
-        <div class="box-element hidden" id="payment-info-s">
+        <div class="box-element hidden" id="payment-info">
             <small>Payment Options</small>
-            <button class="btn btn-sm btn-success" id="make-payment-s">Make Payment</button>
+            <div id="paypal-button-container"></div>
+            <!-- <button class="btn btn-sm btn-success" id="make-payment">Make Payment</button> -->
         </div>
     </div>
-
-
 
     <div class="col-lg-6">
         <div class="box-element">
@@ -63,18 +61,47 @@
         {% endfor %}
         <h5>Items:   {{ order.get_cart_items }}</h5>
         <h5>Total:   {{ order.get_cart_total|floatformat:2 }}€</h5>
-        <br>
-        <div class="box-element hidden" id="payment-info-ns">
-            <small>Payment Options</small>
-            <button class="btn btn-sm btn-success" id="make-payment-ns">Make Payment</button>
-        </div>
     </div>
 </div>
+
+
+<!-- Include the PayPal JavaScript SDK -->
+<script src="https://www.paypal.com/sdk/js?client-id=AYIcSXbkgLE88Djurvrn--wVNgb8sWcj0H5oWD0P6AyOOvrK1r6iCdP-KU1gwfGkf9km6CSNKHG8upUc&currency=EUR"></script>
+
+<script>
+    // Render the PayPal button into #paypal-button-container
+    var total = '{{ order.get_cart_total }}';
+    paypal.Buttons({
+        style: {
+            color: 'blue',
+        },
+
+        // Set up the transaction
+        createOrder: function(data, actions) {
+            return actions.order.create({
+                purchase_units: [{
+                    amount: {
+                        value: parseFloat(total).toFixed(2),
+                    }
+                }]
+            });
+        },
+
+        // Finalize the transaction
+        onApprove: function(data, actions) {
+            return actions.order.capture().then(function(details) {
+                // Show a success message to the buyer
+                submitFormData();
+            });
+        }
+
+
+    }).render('#paypal-button-container');
+</script>
 
 <script type="text/javascript">
     var user = '{{ request.user }}';
     var shipping = '{{ order.shipping }}';
-    var total = '{{ order.get_cart_total }}';
     
     if(shipping === 'False') {
         document.getElementById('shipping-info').innerHTML = '';
@@ -84,7 +111,7 @@
     }
     if(shipping === 'False' && user !== 'AnonymousUser') {
         document.getElementById('form-wrapper').classList.add('hidden');
-        document.getElementById('payment-info-ns').classList.remove('hidden');
+        document.getElementById('payment-info').classList.remove('hidden');
     }
 
     var form = document.getElementById('form');
@@ -95,17 +122,13 @@
         e.preventDefault();
         console.log('Form submitted...');
         document.getElementById('form-button').classList.add('hidden');
-        document.getElementById('payment-info-s').classList.remove('hidden');
+        document.getElementById('payment-info').classList.remove('hidden');
     });
-    if(shipping === 'False' && user !== 'AnonymousUser') {
-        document.getElementById('make-payment-ns').addEventListener('click', function(e) {
-            submitFormData();
-        });
-    } else {
-        document.getElementById('make-payment-s').addEventListener('click', function(e) {
-            submitFormData();
-        });
-    }
+    
+    // Placeholder logic for payment handling 
+    // document.getElementById('make-payment').addEventListener('click', function(e) {
+    //     submitFormData();
+    // });
 
     function submitFormData() {
         console.log('Payment button clicked.');
@@ -159,6 +182,9 @@
         .then(data => {
             console.log('Success:', data);
             alert('Transaction completed!');
+
+            cart = {};
+            document.cookie = 'cart=' + JSON.stringify(cart) + ";domain=;path=/";
             window.location.href = "{% url 'store' %}";
         });
     }
